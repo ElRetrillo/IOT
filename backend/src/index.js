@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import mqtt from 'mqtt';
 import nodemailer from 'nodemailer';
 import 'dotenv/config'; // Carga las variables del .env
+import cors from 'cors';
 
 // Importar los modelos de la DB
 import Measurement from './models/Measurement.js';
@@ -12,6 +13,7 @@ import AlertLog from './models/AlertLog.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 app.use(express.json());
+app.use(cors());
 
 // --- Conexión a MongoDB ---
 mongoose.connect(process.env.MONGO_URL)
