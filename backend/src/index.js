@@ -31,7 +31,7 @@ const transporter = nodemailer.createTransport({
 const clientMQTT = mqtt.connect(process.env.MQTT_BROKER_URL);
 
 clientMQTT.on('connect', () => {
-  console.log('✅ Conectado al Broker MQTT');
+  console.log(' Conectado al Broker MQTT');
   
   // Suscribirse a los tópicos
   clientMQTT.subscribe(process.env.MQTT_TOPIC_DATA, (err) => {
@@ -85,7 +85,7 @@ async function sendAlertEmail(alertLog) {
   const mailOptions = {
     from: process.env.MAIL_USER,
     to: process.env.MAIL_TO,
-    subject: `🚨 Alerta de IoT: ${alertLog.type}`,
+    subject: ` Alerta de IoT: ${alertLog.type}`,
     text: `Se ha registrado una nueva alerta:
            Sensor: ${alertLog.sensor}
            Mensaje: ${alertLog.message}
@@ -115,5 +115,5 @@ app.get('/api/logs', async (req, res) => {
 
 // --- Iniciar el servidor ---
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor backend corriendo en http://localhost:${PORT}`);
+  console.log(` Servidor backend corriendo en http://localhost:${PORT}`);
 });
