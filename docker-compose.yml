@@ -38,6 +38,8 @@ services:
       - mongo
     networks:
       - iot_network
+    dns:
+      - 8.8.8.8
   
   # 4. Frontend (Puedes añadirlo después)
   # frontend:
