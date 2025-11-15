@@ -65,3 +65,11 @@ th {
   padding: 1rem;
   border-radius: 8px;
 }
+/* En: frontend/src/App.css */
+
+/* ... (busca y elimina la línea 'height: 400px;' de la clase .card) ... */
+
+/* AÑADE ESTA NUEVA CLASE AL FINAL */
+.full-width-card {
+  grid-column: 1 / -1; /* Hace que este item ocupe todo el ancho del grid */
+}
