@@ -2,15 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import './App.css';
 import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import Login from './Login'; // <--- Importamos el Login
-
+import Login from './Login'; 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// --- MODIFICADO: fetchData ahora recibe el token ---
+
 const fetchData = async (setLogs, setMeasurements, setStats, setError, token) => {
   try {
     const headers = {
-      'Authorization': `Bearer ${token}` // <--- AQUÍ ENVIAMOS EL JWT
+      'Authorization': `Bearer ${token}` 
     };
 
     const [logsResponse, measurementsResponse, statsResponse] = await Promise.all([
@@ -20,7 +19,7 @@ const fetchData = async (setLogs, setMeasurements, setStats, setError, token) =>
     ]);
 
     if (logsResponse.status === 401 || measurementsResponse.status === 401) {
-      throw new Error('Unauthorized'); // Token vencido o inválido
+      throw new Error('Unauthorized');
     }
 
     if (!logsResponse.ok || !measurementsResponse.ok || !statsResponse.ok) {
@@ -37,15 +36,14 @@ const fetchData = async (setLogs, setMeasurements, setStats, setError, token) =>
     setError(null);
     return true; 
   } catch (err) {
-    if (err.message === 'Unauthorized') return false; // Falló autenticación
+    if (err.message === 'Unauthorized') return false; 
     console.error(err);
     setError('No se pudo cargar la data.');
-    return true; // Falló conexión pero no auth
+    return true; 
   }
 };
 
 function App() {
-  // Estado para el token
   const [token, setToken] = useState(localStorage.getItem('iot_token'));
   
   const [logs, setLogs] = useState([]);
@@ -54,12 +52,10 @@ function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Si no hay token, no intentamos cargar nada
     if (!token) return;
 
-    // Llamada inicial
     fetchData(setLogs, setMeasurements, setStats,setError, token).then(success => {
-        if (!success) logout(); // Si el token era inválido, salir
+        if (!success) logout(); 
     });
     
 
@@ -70,9 +66,8 @@ function App() {
     }, 3000);
 
     return () => clearInterval(intervalId);
-  }, [token]); // Se ejecuta cuando cambia el token
+  }, [token]); 
 
-  // Cálculo del gráfico (sin cambios)
   const chartData = useMemo(() => {
     const counts = logs.reduce((acc, log) => {
       const type = log.type || 'Indefinido';
@@ -103,7 +98,6 @@ function App() {
     setToken(null);
   };
 
-  // --- RENDERIZADO CONDICIONAL ---
   if (!token) {
     return <Login onLoginSuccess={setToken} />;
   }

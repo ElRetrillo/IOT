@@ -7,30 +7,23 @@ import cors from 'cors';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import process from 'process';
-
-// Importar modelos (Asegúrate de que las rutas sean correctas)
 import User from './models/User.js';
 import Measurement from './models/Measurement.js';
 import AlertLog from './models/AlertLog.js';
 
-// --- 1. VARIABLES GLOBALES ---
+//tiempo señal - correo
 let lastProcessingTime_ms = 0;
 
-// --- 2. CONFIGURACIÓN APP ---
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
 app.use(cors());
 
-// --- 3. CONEXIONES (DB y MQTT) ---
-
-// MongoDB
 mongoose.connect(process.env.MONGO_URL)
-  .then(() => console.log('✅ Conectado a MongoDB'))
-  .catch(err => console.error('❌ Error al conectar a MongoDB:', err));
+  .then(() => console.log(' Conectado a MongoDB'))
+  .catch(err => console.error('Error al conectar a MongoDB:', err));
 
-// Nodemailer
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -51,7 +44,7 @@ clientMQTT.on('connect', () => {
   clientMQTT.subscribe(process.env.MQTT_TOPIC_ALERT);
 });
 
-// --- 4. LÓGICA MQTT (Procesamiento) ---
+//MQTT
 clientMQTT.on('message', async (topic, message) => {
   const payload = JSON.parse(message.toString());
 
@@ -91,8 +84,8 @@ async function sendAlertEmail(alertLog) {
   const mailOptions = {
     from: process.env.MAIL_USER,
     to: process.env.MAIL_TO,
-    subject: `🚨 Alerta IoT: ${alertLog.type}`,
-    text: `Sensor: ${alertLog.sensor}\nMensaje: ${alertLog.message}`,
+    subject: `Alerta IoT: ${alertLog.type}`,
+    text: `El Sensor: ${alertLog.sensor}\n Se ha activado, Mensaje: ${alertLog.message}`,
   };
   try {
     await transporter.sendMail(mailOptions);
@@ -102,7 +95,7 @@ async function sendAlertEmail(alertLog) {
   }
 }
 
-// --- 5. MIDDLEWARE DE AUTENTICACIÓN ---
+// autenticacion con JWT
 const verifyToken = (req, res, next) => {
   const token = req.header('Authorization');
   if (!token) return res.status(401).send({ message: "Acceso denegado" });
@@ -117,7 +110,6 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// --- 6. RUTAS PÚBLICAS (Auth) ---
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -151,14 +143,13 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// --- 7. RUTAS PROTEGIDAS (Data) ---
 
-// Stats (Latencia)
+
+// Latencia
 app.get('/api/stats', verifyToken, (req, res) => {
   res.json({ processing_latency_ms: lastProcessingTime_ms });
 });
 
-// Mediciones
 app.get('/api/measurements', verifyToken, async (req, res) => {
   try {
     const data = await Measurement.find().sort({ timestamp: -1 }).limit(100);
@@ -168,7 +159,7 @@ app.get('/api/measurements', verifyToken, async (req, res) => {
   }
 });
 
-// Logs
+
 app.get('/api/logs', verifyToken, async (req, res) => {
   try {
     const logs = await AlertLog.find().sort({ timestamp: -1 });
@@ -178,7 +169,6 @@ app.get('/api/logs', verifyToken, async (req, res) => {
   }
 });
 
-// --- 8. INICIAR SERVIDOR ---
 app.listen(PORT, () => {
   console.log(`🚀 Servidor backend corriendo en http://localhost:${PORT}`);
 });

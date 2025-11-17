@@ -1,4 +1,4 @@
-/* En: frontend/src/App.css */
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   color-scheme: light dark;
@@ -51,12 +51,12 @@ th {
   background-color: #444;
 }
 
-/* Colorear las alertas */
+
 .log-type-movimiento {
-  color: #ffb8b8; /* Rojo claro */
+  color: #ffb8b8; 
 }
 .log-type-calidadaire {
-  color: #ffe0b8; /* Naranja claro */
+  color: #ffe0b8; 
 }
 
 .error-banner {
@@ -65,11 +65,8 @@ th {
   padding: 1rem;
   border-radius: 8px;
 }
-/* En: frontend/src/App.css */
 
-/* ... (busca y elimina la línea 'height: 400px;' de la clase .card) ... */
 
-/* AÑADE ESTA NUEVA CLASE AL FINAL */
 .full-width-card {
-  grid-column: 1 / -1; /* Hace que este item ocupe todo el ancho del grid */
+  grid-column: 1 / -1; 
 }

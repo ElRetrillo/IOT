@@ -1,11 +1,11 @@
-// frontend/src/Login.jsx
+
 import { useState } from 'react';
-import './App.css'; // Reusamos estilos
+import './App.css'; 
 
 function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false); // Para alternar entre Login y Registro
+  const [isRegistering, setIsRegistering] = useState(false); 
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
@@ -29,9 +29,8 @@ function Login({ onLoginSuccess }) {
 
       if (isRegistering) {
         alert('Usuario creado con éxito. Ahora puedes iniciar sesión.');
-        setIsRegistering(false); // Volver a la pantalla de login
+        setIsRegistering(false); 
       } else {
-        // Es Login: Guardamos el token y avisamos a App.jsx
         localStorage.setItem('iot_token', data.token);
         onLoginSuccess(data.token);
       }
