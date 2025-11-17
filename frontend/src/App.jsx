@@ -1,138 +1,148 @@
-// En: frontend/src/App.jsx
 import { useState, useEffect, useMemo } from 'react';
 import './App.css';
-
-// --- NUEVO 1: Importar Chart.js y el gráfico de Torta (Pie) ---
 import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import Login from './Login'; // <--- Importamos el Login
 
-// --- NUEVO 2: Registrar los componentes necesarios de Chart.js ---
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-
-// Función de fetch (la dejamos igual)
-const fetchData = async (setLogs, setMeasurements, setError) => {
+// --- MODIFICADO: fetchData ahora recibe el token ---
+const fetchData = async (setLogs, setMeasurements, setStats, setError, token) => {
   try {
-    const [logsResponse, measurementsResponse] = await Promise.all([
-      fetch('http://localhost:3001/api/logs'),
-      fetch('http://localhost:3001/api/measurements')
+    const headers = {
+      'Authorization': `Bearer ${token}` // <--- AQUÍ ENVIAMOS EL JWT
+    };
+
+    const [logsResponse, measurementsResponse, statsResponse] = await Promise.all([
+      fetch('http://localhost:3001/api/logs', { headers }),
+      fetch('http://localhost:3001/api/measurements', { headers }),
+      fetch('http://localhost:3001/api/stats', {headers})
     ]);
 
-    if (!logsResponse.ok || !measurementsResponse.ok) {
+    if (logsResponse.status === 401 || measurementsResponse.status === 401) {
+      throw new Error('Unauthorized'); // Token vencido o inválido
+    }
+
+    if (!logsResponse.ok || !measurementsResponse.ok || !statsResponse.ok) {
       throw new Error('Error al conectar con la API');
     }
 
     const logsData = await logsResponse.json();
     const measurementsData = await measurementsResponse.json();
+    const statsData = await statsResponse.json();
 
     setLogs(logsData);
     setMeasurements(measurementsData);
+    setStats(statsData);
     setError(null);
+    return true; 
   } catch (err) {
+    if (err.message === 'Unauthorized') return false; // Falló autenticación
     console.error(err);
-    setError('No se pudo cargar la data. ¿El backend está corriendo?');
+    setError('No se pudo cargar la data.');
+    return true; // Falló conexión pero no auth
   }
 };
 
 function App() {
+  // Estado para el token
+  const [token, setToken] = useState(localStorage.getItem('iot_token'));
+  
   const [logs, setLogs] = useState([]);
   const [measurements, setMeasurements] = useState([]);
+  const [stats, setStats] = useState({ processing_latency_ms: 0});
   const [error, setError] = useState(null);
 
-  // useEffect para el Polling (lo dejamos igual)
   useEffect(() => {
-    fetchData(setLogs, setMeasurements, setError);
-    const intervalId = setInterval(() => {
-      fetchData(setLogs, setMeasurements, setError);
-    }, 3000); 
-    return () => clearInterval(intervalId);
-  }, []);
+    // Si no hay token, no intentamos cargar nada
+    if (!token) return;
 
-  
-  // --- NUEVO 3: Procesar datos para el gráfico ---
-  // useMemo recalcula esto solo cuando la data de 'logs' cambia.
+    // Llamada inicial
+    fetchData(setLogs, setMeasurements, setStats,setError, token).then(success => {
+        if (!success) logout(); // Si el token era inválido, salir
+    });
+    
+
+    const intervalId = setInterval(() => {
+      fetchData(setLogs, setMeasurements, setStats, setError, token).then(success => {
+          if (!success) logout();
+      });
+    }, 3000);
+
+    return () => clearInterval(intervalId);
+  }, [token]); // Se ejecuta cuando cambia el token
+
+  // Cálculo del gráfico (sin cambios)
   const chartData = useMemo(() => {
-    // 1. Contar cuántas veces aparece cada 'tipo' de alerta
     const counts = logs.reduce((acc, log) => {
-      const type = log.type || 'Indefinido'; // Agrupa logs sin tipo
+      const type = log.type || 'Indefinido';
       acc[type] = (acc[type] || 0) + 1;
       return acc;
-    }, {}); // Resultado ej: { Movimiento: 5, CalidadAire: 2 }
-
+    }, {});
+    
     const labels = Object.keys(counts);
-    const dataValues = Object.values(counts);
-
-    // 2. Asignar colores a cada tipo de alerta
-    const backgroundColors = labels.map(label => {
-      if (label === 'Movimiento') return 'rgba(255, 99, 132, 0.5)'; // Rojo
-      if (label === 'CalidadAire') return 'rgba(255, 206, 86, 0.5)'; // Naranja
-      if (label === 'Test') return 'rgba(75, 192, 192, 0.5)'; // Verde
-      return 'rgba(153, 102, 255, 0.5)'; // Morado (default)
-    });
-
-    const borderColors = backgroundColors.map(color => color.replace('0.5', '1'));
-
-    // 3. Formatear para Chart.js
     return {
       labels: labels,
       datasets: [{
         label: '# de Alertas',
-        data: dataValues,
-        backgroundColor: backgroundColors,
-        borderColor: borderColors,
+        data: Object.values(counts),
+        backgroundColor: ['rgba(255, 99, 132, 0.5)', 'rgba(255, 206, 86, 0.5)', 'rgba(75, 192, 192, 0.5)', 'rgba(153, 102, 255, 0.5)'],
+        borderColor: ['rgba(255, 99, 132, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)'],
         borderWidth: 1,
       }],
     };
-  }, [logs]); // Dependencia: se actualiza solo si 'logs' cambia
+  }, [logs]);
 
-
-  // Función para formatear la fecha (la dejamos igual)
   const formatTimestamp = (dateString) => {
-    const options = {
-      day: 'numeric', month: 'numeric', year: 'numeric',
-      hour: 'numeric', minute: 'numeric', second: 'numeric'
-    };
+    const options = { day: 'numeric', month: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
     return new Date(dateString).toLocaleString('es-CL', options);
   };
 
+  const logout = () => {
+    localStorage.removeItem('iot_token');
+    setToken(null);
+  };
+
+  // --- RENDERIZADO CONDICIONAL ---
+  if (!token) {
+    return <Login onLoginSuccess={setToken} />;
+  }
+
   return (
     <div className="dashboard-container">
-      <header>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Dashboard IoT</h1>
-        {error && <p className="error-banner">{error}</p>}
+        <button onClick={logout} style={{ padding: '8px 16px', backgroundColor: '#d93025', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+          Cerrar Sesión
+        </button>
       </header>
+      
+      {error && <p className="error-banner">{error}</p>}
 
-      {/* --- NUEVO 4: Grid Layout actualizado --- */}
       <main className="content-grid">
-
-        {/* --- Sección de Estadísticas (NUEVA) --- */}
         <section className="card">
           <h2>Estadísticas de Alertas</h2>
           <div style={{ position: 'relative', height: '300px' }}>
-            <Pie 
-              data={chartData} 
-              options={{ 
-                maintainAspectRatio: false, // Permite que el gráfico llene el div
-                plugins: {
-                  legend: {
-                    position: 'top',
-                  },
-                },
-              }} 
-            />
+            <Pie data={chartData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }} />
           </div>
         </section>
 
-        {/* --- Sección de Alertas / Logs (Original) --- */}
+        <section className="card">
+          <h2>Estadísticas en Vivo</h2>
+          <div style={{ padding: '1rem' }}>
+            <h4>Latencia de Procesamiento (Backend)</h4>
+            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>
+              {stats.processing_latency_ms.toFixed(2)} ms
+            </p>
+            <small>(Tiempo desde que MQTT recibe la alerta hasta que se envía el correo)</small>
+          </div>
+        </section>
+
         <section className="card">
           <h2>Logs de Alertas</h2>
           <table>
             <thead>
-              <tr>
-                <th>Fecha y Hora</th>
-                <th>Sensor</th>
-                <th>Mensaje</th>
-              </tr>
+              <tr><th>Fecha y Hora</th><th>Sensor</th><th>Mensaje</th></tr>
             </thead>
             <tbody>
               {logs.map((log) => (
@@ -146,16 +156,11 @@ function App() {
           </table>
         </section>
 
-        {/* --- Sección de Mediciones (MODIFICADA) --- */}
-        <section className="card full-width-card"> {/* <-- Clase nueva */}
+        <section className="card full-width-card">
           <h2>Últimas Mediciones (MQ-135)</h2>
           <table>
             <thead>
-              <tr>
-                <th>Fecha y Hora</th>
-                <th>Sensor</th>
-                <th>Valor (Crudo)</th>
-              </tr>
+              <tr><th>Fecha y Hora</th><th>Sensor</th><th>Valor (Crudo)</th></tr>
             </thead>
             <tbody>
               {measurements.filter(m => m.sensor === 'mq135').map((m) => (
@@ -168,7 +173,6 @@ function App() {
             </tbody>
           </table>
         </section>
-
       </main>
     </div>
   );

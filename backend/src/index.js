@@ -2,55 +2,60 @@ import express from 'express';
 import mongoose from 'mongoose';
 import mqtt from 'mqtt';
 import nodemailer from 'nodemailer';
-import 'dotenv/config'; // Carga las variables del .env
+import 'dotenv/config';
 import cors from 'cors';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import process from 'process';
 
-// Importar los modelos de la DB
+// Importar modelos (Asegúrate de que las rutas sean correctas)
+import User from './models/User.js';
 import Measurement from './models/Measurement.js';
 import AlertLog from './models/AlertLog.js';
 
-// --- Configuraciones ---
+// --- 1. VARIABLES GLOBALES ---
+let lastProcessingTime_ms = 0;
+
+// --- 2. CONFIGURACIÓN APP ---
 const app = express();
 const PORT = process.env.PORT || 3001;
+
 app.use(express.json());
 app.use(cors());
 
-// --- Conexión a MongoDB ---
+// --- 3. CONEXIONES (DB y MQTT) ---
+
+// MongoDB
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log('✅ Conectado a MongoDB'))
   .catch(err => console.error('❌ Error al conectar a MongoDB:', err));
 
-// --- Configuración de Nodemailer (para los correos) ---
+// Nodemailer
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // O el servicio que uses
+  service: 'gmail',
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
   },
 });
 
-// --- Conexión al Broker MQTT ---
-const clientMQTT = mqtt.connect(process.env.MQTT_BROKER_URL);
-
-clientMQTT.on('connect', () => {
-  console.log(' Conectado al Broker MQTT');
-  
-  // Suscribirse a los tópicos
-  clientMQTT.subscribe(process.env.MQTT_TOPIC_DATA, (err) => {
-    if (!err) console.log(`Suscrito a ${process.env.MQTT_TOPIC_DATA}`);
-  });
-  
-  clientMQTT.subscribe(process.env.MQTT_TOPIC_ALERT, (err) => {
-    if (!err) console.log(`Suscrito a ${process.env.MQTT_TOPIC_ALERT}`);
-  });
+// MQTT Broker
+const clientMQTT = mqtt.connect(process.env.MQTT_BROKER_URL, {
+  username: process.env.MQTT_USER,
+  password: process.env.MQTT_PASS
 });
 
-// --- Lógica principal: Escuchar mensajes MQTT ---
+clientMQTT.on('connect', () => {
+  console.log('✅ Conectado al Broker MQTT');
+  clientMQTT.subscribe(process.env.MQTT_TOPIC_DATA);
+  clientMQTT.subscribe(process.env.MQTT_TOPIC_ALERT);
+});
+
+// --- 4. LÓGICA MQTT (Procesamiento) ---
 clientMQTT.on('message', async (topic, message) => {
   const payload = JSON.parse(message.toString());
 
   if (topic === process.env.MQTT_TOPIC_DATA) {
-    // Es un dato de sensor
     console.log(`[DATA] Recibido: ${message.toString()}`);
     try {
       const newMeasurement = new Measurement(payload);
@@ -61,61 +66,119 @@ clientMQTT.on('message', async (topic, message) => {
   }
 
   if (topic === process.env.MQTT_TOPIC_ALERT) {
-    // Es una alerta
+    const startTime = process.hrtime.bigint();
     console.log(`[ALERTA] Recibido: ${message.toString()}`);
     try {
-      // 1. Guardar el log en la DB
       const newLog = new AlertLog({
         type: payload.type || 'General',
         message: payload.message,
         sensor: payload.sensor
       });
       await newLog.save();
-
-      // 2. Enviar correo
       await sendAlertEmail(newLog);
-
     } catch (error) {
       console.error('Error procesando alerta:', error);
+    } finally {
+      const endTime = process.hrtime.bigint();
+      lastProcessingTime_ms = Number(endTime - startTime) / 1_000_000;
+      console.log(`Tiempo de procesamiento: ${lastProcessingTime_ms.toFixed(2)} ms`);
     }
   }
 });
 
-// Función para enviar correo
 async function sendAlertEmail(alertLog) {
   console.log('Enviando correo...');
   const mailOptions = {
     from: process.env.MAIL_USER,
     to: process.env.MAIL_TO,
-    subject: ` Alerta de IoT: ${alertLog.type}`,
-    text: `Se ha registrado una nueva alerta:
-           Sensor: ${alertLog.sensor}
-           Mensaje: ${alertLog.message}
-           Hora: ${alertLog.timestamp}`,
+    subject: `🚨 Alerta IoT: ${alertLog.type}`,
+    text: `Sensor: ${alertLog.sensor}\nMensaje: ${alertLog.message}`,
   };
-
   try {
     await transporter.sendMail(mailOptions);
-    console.log('Correo de alerta enviado.');
+    console.log('Correo enviado.');
   } catch (error) {
-    console.error('Error enviando correo:', error);
+    console.error('Fallo envío correo (Posible Spam Filter):', error.message);
   }
 }
 
-// --- API Endpoints para el Dashboard ---
-// Endpoint para obtener las últimas 100 mediciones
-app.get('/api/measurements', async (req, res) => {
-  const data = await Measurement.find().sort({ timestamp: -1 }).limit(100);
-  res.json(data);
+// --- 5. MIDDLEWARE DE AUTENTICACIÓN ---
+const verifyToken = (req, res, next) => {
+  const token = req.header('Authorization');
+  if (!token) return res.status(401).send({ message: "Acceso denegado" });
+
+  try {
+    const cleanToken = token.replace("Bearer ", "");
+    const verified = jwt.verify(cleanToken, process.env.JWT_SECRET);
+    req.user = verified;
+    next();
+  } catch (error) {
+    res.status(400).send({ message: "Token inválido" });
+  }
+};
+
+// --- 6. RUTAS PÚBLICAS (Auth) ---
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+    const newUser = new User({ email, passwordHash });
+    await newUser.save();
+    res.status(201).send({ message: "Usuario creado" });
+  } catch (error) {
+    res.status(500).send({ message: "Error al registrar", error });
+  }
 });
 
-// Endpoint para obtener todos los logs de alertas
-app.get('/api/logs', async (req, res) => {
-  const logs = await AlertLog.find().sort({ timestamp: -1 });
-  res.json(logs);
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(401).send({ message: "Credenciales inválidas" });
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) return res.status(401).send({ message: "Credenciales inválidas" });
+
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+    res.json({ token });
+  } catch (error) {
+    res.status(500).send({ message: "Error al iniciar sesión", error });
+  }
 });
 
-// --- Iniciar el servidor ---
+// --- 7. RUTAS PROTEGIDAS (Data) ---
+
+// Stats (Latencia)
+app.get('/api/stats', verifyToken, (req, res) => {
+  res.json({ processing_latency_ms: lastProcessingTime_ms });
+});
+
+// Mediciones
+app.get('/api/measurements', verifyToken, async (req, res) => {
+  try {
+    const data = await Measurement.find().sort({ timestamp: -1 }).limit(100);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ message: "Error obteniendo mediciones" });
+  }
+});
+
+// Logs
+app.get('/api/logs', verifyToken, async (req, res) => {
+  try {
+    const logs = await AlertLog.find().sort({ timestamp: -1 });
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ message: "Error obteniendo logs" });
+  }
+});
+
+// --- 8. INICIAR SERVIDOR ---
 app.listen(PORT, () => {
-  console.log(` Servidor backend corriendo en http://localhost:${PORT}`);
+  console.log(`🚀 Servidor backend corriendo en http://localhost:${PORT}`);
 });
