@@ -16,6 +16,7 @@ let lastProcessingTime_ms = 0;
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const MQTT_TOPIC_MODE = 'iot/proyecto/mode';
 
 app.use(express.json());
 app.use(cors());
@@ -167,6 +168,19 @@ app.get('/api/logs', verifyToken, async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: "Error obteniendo logs" });
   }
+});
+
+app.post('/api/mode', verifyToken, (req, res) => {
+  const { mode } = req.body;
+
+  if (mode !== 'HOGAR' && mode !== 'SALIDA') {
+    return res.status(400).json({ message: "Modo inválido" });
+  }
+
+  console.log(`Cambiando sistema a modo: ${mode}`);
+  clientMQTT.publish(process.env.MQTT_TOPIC_MODE || 'iot/proyecto/mode', mode, { retain: true });
+
+  res.json({ message: `Modo cambiado a ${mode}` });
 });
 
 app.listen(PORT, () => {

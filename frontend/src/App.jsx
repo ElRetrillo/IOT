@@ -2,20 +2,22 @@ import { useState, useEffect, useMemo } from 'react';
 import './App.css';
 import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import Login from './Login'; 
+import Login from './Login';
+
+// Registrar componentes de gráficos
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-
+// Función para obtener datos (fuera del componente para limpieza)
 const fetchData = async (setLogs, setMeasurements, setStats, setError, token) => {
   try {
     const headers = {
-      'Authorization': `Bearer ${token}` 
+      'Authorization': `Bearer ${token}`
     };
 
     const [logsResponse, measurementsResponse, statsResponse] = await Promise.all([
       fetch('http://localhost:3001/api/logs', { headers }),
       fetch('http://localhost:3001/api/measurements', { headers }),
-      fetch('http://localhost:3001/api/stats', {headers})
+      fetch('http://localhost:3001/api/stats', { headers })
     ]);
 
     if (logsResponse.status === 401 || measurementsResponse.status === 401) {
@@ -34,47 +36,73 @@ const fetchData = async (setLogs, setMeasurements, setStats, setError, token) =>
     setMeasurements(measurementsData);
     setStats(statsData);
     setError(null);
-    return true; 
+    return true;
   } catch (err) {
-    if (err.message === 'Unauthorized') return false; 
+    if (err.message === 'Unauthorized') return false;
     console.error(err);
     setError('No se pudo cargar la data.');
-    return true; 
+    return true;
   }
 };
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('iot_token'));
-  
+
+  // Estado para el modo del sistema (HOGAR por defecto visualmente)
+  const [systemMode, setSystemMode] = useState("HOGAR");
+
   const [logs, setLogs] = useState([]);
   const [measurements, setMeasurements] = useState([]);
-  const [stats, setStats] = useState({ processing_latency_ms: 0});
+  const [stats, setStats] = useState({ processing_latency_ms: 0 });
   const [error, setError] = useState(null);
+
+  // --- NUEVA FUNCIÓN: CAMBIAR MODO ---
+  const changeMode = async (newMode) => {
+    try {
+      const response = await fetch('http://localhost:3001/api/mode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ mode: newMode })
+      });
+
+      if (response.ok) {
+        setSystemMode(newMode); // Actualizamos la interfaz
+        console.log(`Modo cambiado a ${newMode}`);
+      } else {
+        console.error("Error al cambiar modo en el servidor");
+      }
+    } catch (error) {
+      console.error("Error de red cambiando modo:", error);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
 
-    fetchData(setLogs, setMeasurements, setStats,setError, token).then(success => {
-        if (!success) logout(); 
+    fetchData(setLogs, setMeasurements, setStats, setError, token).then(success => {
+      if (!success) logout();
     });
-    
 
     const intervalId = setInterval(() => {
       fetchData(setLogs, setMeasurements, setStats, setError, token).then(success => {
-          if (!success) logout();
+        if (!success) logout();
       });
     }, 3000);
 
     return () => clearInterval(intervalId);
-  }, [token]); 
+  }, [token]);
 
+  // Preparar datos para el gráfico
   const chartData = useMemo(() => {
     const counts = logs.reduce((acc, log) => {
       const type = log.type || 'Indefinido';
       acc[type] = (acc[type] || 0) + 1;
       return acc;
     }, {});
-    
+
     const labels = Object.keys(counts);
     return {
       labels: labels,
@@ -110,10 +138,53 @@ function App() {
           Cerrar Sesión
         </button>
       </header>
-      
+
       {error && <p className="error-banner">{error}</p>}
 
       <main className="content-grid">
+
+        {/* --- NUEVA SECCIÓN DE CONTROL DE MODO --- */}
+        <section className="card full-width-card" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+          <h2>Modo del Sistema</h2>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '1rem' }}>
+
+            <button
+              onClick={() => changeMode("HOGAR")}
+              style={{
+                padding: '15px 30px',
+                fontSize: '1.2rem',
+                backgroundColor: systemMode === "HOGAR" ? '#4CAF50' : '#444',
+                color: 'white',
+                border: '2px solid #4CAF50',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.3s'
+              }}
+            >
+              🏠 Modo Hogar
+              <div style={{ fontSize: '0.8rem', marginTop: '5px', opacity: 0.8 }}>Buzzer ON | Correo OFF</div>
+            </button>
+
+            <button
+              onClick={() => changeMode("SALIDA")}
+              style={{
+                padding: '15px 30px',
+                fontSize: '1.2rem',
+                backgroundColor: systemMode === "SALIDA" ? '#d93025' : '#444',
+                color: 'white',
+                border: '2px solid #d93025',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.3s'
+              }}
+            >
+              🚪 Modo Salida
+              <div style={{ fontSize: '0.8rem', marginTop: '5px', opacity: 0.8 }}>Buzzer OFF | Correo ON</div>
+            </button>
+
+          </div>
+        </section>
+
         <section className="card">
           <h2>Estadísticas de Alertas</h2>
           <div style={{ position: 'relative', height: '300px' }}>
