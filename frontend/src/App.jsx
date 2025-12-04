@@ -4,10 +4,8 @@ import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import Login from './Login';
 
-// Registrar componentes de gráficos
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// Función para obtener datos (fuera del componente para limpieza)
 const fetchData = async (setLogs, setMeasurements, setStats, setError, token) => {
   try {
     const headers = {
@@ -48,7 +46,7 @@ const fetchData = async (setLogs, setMeasurements, setStats, setError, token) =>
 function App() {
   const [token, setToken] = useState(localStorage.getItem('iot_token'));
 
-  // Estado para el modo del sistema (HOGAR por defecto visualmente)
+  // modo del sistema 
   const [systemMode, setSystemMode] = useState("HOGAR");
 
   const [logs, setLogs] = useState([]);
@@ -56,7 +54,7 @@ function App() {
   const [stats, setStats] = useState({ processing_latency_ms: 0 });
   const [error, setError] = useState(null);
 
-  // --- NUEVA FUNCIÓN: CAMBIAR MODO ---
+  
   const changeMode = async (newMode) => {
     try {
       const response = await fetch('http://localhost:3001/api/mode', {
@@ -69,7 +67,7 @@ function App() {
       });
 
       if (response.ok) {
-        setSystemMode(newMode); // Actualizamos la interfaz
+        setSystemMode(newMode); 
         console.log(`Modo cambiado a ${newMode}`);
       } else {
         console.error("Error al cambiar modo en el servidor");
@@ -95,7 +93,7 @@ function App() {
     return () => clearInterval(intervalId);
   }, [token]);
 
-  // Preparar datos para el gráfico
+  
   const chartData = useMemo(() => {
     const counts = logs.reduce((acc, log) => {
       const type = log.type || 'Indefinido';
@@ -143,7 +141,7 @@ function App() {
 
       <main className="content-grid">
 
-        {/* --- NUEVA SECCIÓN DE CONTROL DE MODO --- */}
+        {/* CONTROL DE MODO*/}
         <section className="card full-width-card" style={{ textAlign: 'center', marginBottom: '1rem' }}>
           <h2>Modo del Sistema</h2>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '1rem' }}>
@@ -161,7 +159,7 @@ function App() {
                 transition: 'all 0.3s'
               }}
             >
-              🏠 Modo Hogar
+              Modo Hogar
               <div style={{ fontSize: '0.8rem', marginTop: '5px', opacity: 0.8 }}>Buzzer ON | Correo OFF</div>
             </button>
 
@@ -178,7 +176,7 @@ function App() {
                 transition: 'all 0.3s'
               }}
             >
-              🚪 Modo Salida
+              Modo Salida
               <div style={{ fontSize: '0.8rem', marginTop: '5px', opacity: 0.8 }}>Buzzer OFF | Correo ON</div>
             </button>
 

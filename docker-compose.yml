@@ -1,39 +1,39 @@
 version: '3.8'
 
 services:
-  # 1. Broker MQTT
+
   mosquitto:
     image: eclipse-mosquitto:2.0
     container_name: broker_mqtt
     ports:
-      - "1883:1883" # Puerto estándar de MQTT
-      - "9001:9001" # Puerto para WebSockets (si lo usas en el frontend)
+      - "1883:1883" 
+      - "9001:9001" 
     volumes:
       - ./mosquitto/config:/mosquitto/config
     networks:
       - iot_network
 
-  # 2. Base de Datos MongoDB
+
   mongo:
     image: mongo:latest
     container_name: db_mongo
     ports:
-      - "27017:27017" # Puerto estándar de MongoDB
+      - "27017:27017" 
     volumes:
-      - ./mongo-data:/data/db # Persistencia de datos
+      - ./mongo-data:/data/db 
     networks:
       - iot_network
 
-  # 3. Backend (Tu código Node.js)
+
   backend:
-    build: ./backend # Le dice que busque un Dockerfile en la carpeta /backend
+    build: ./backend # 
     container_name: backend_server
     ports:
-      - "3001:3001" # Puerto de tu API (puedes cambiarlo)
-    env_file: ./.env # Carga las variables de entorno desde el archivo .env
+      - "3001:3001" 
+    env_file: ./.env 
     volumes:
-      - ./backend/src:/app/src # Sincroniza tu código para desarrollo
-    depends_on: # No arranca hasta que Mosquitto y Mongo estén listos
+      - ./backend/src:/app/src 
+    depends_on: 
       - mosquitto
       - mongo
     networks:
@@ -41,21 +41,10 @@ services:
     dns:
       - 8.8.8.8
   
-  # 4. Frontend (Puedes añadirlo después)
-  # frontend:
-  #   build: ./frontend
-  #   container_name: frontend_dashboard
-  #   ports:
-  #     - "80:80" # o "3000:3000" si es en modo dev
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - iot_network
 
-# Definimos la red interna para que los contenedores se comuniquen
 networks:
   iot_network:
     driver: bridge
 
 volumes:
-  mongo-data: # Volumen para que los datos de Mongo no se borren
+  mongo-data: 

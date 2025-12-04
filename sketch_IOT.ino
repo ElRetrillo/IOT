@@ -1,13 +1,13 @@
-// --- LIBRERÍAS ---
+//  LIBRERIAS
 #include <WiFi.h>
 #include <PubSubClient.h>
 
-// ---  DEFINICIÓN DE PINES ---
+//  DEFINICION DE PINES 
 const int MQ_PIN = 34;      
 const int PIR_PIN = 25; 
 const int BUZZER_PIN = 26;  
 
-// ---  CREDENCIALES WIFI Y MQTT ---
+//   CREDENCIALES WIFI Y MQTT 
 
 const char* ssid = "A35 de Daniel";      
 const char* password = "trigo123";  
@@ -16,12 +16,12 @@ const int mqtt_port = 1883;
 const char* mqtt_user = "esp32_user"; 
 const char* mqtt_pass = "19082003";
 
-// ---  TÓPICOS MQTT ---
+//  TOPICOS MQTT 
 const char* MQTT_TOPIC_DATA = "iot/proyecto/data";
 const char* MQTT_TOPIC_ALERT = "iot/proyecto/alert";
 const char* TOPIC_MODE = "iot/proyecto/mode";
 
-// ---  VARIABLES GLOBALES Y ESTADOS ---
+//  VARIABLES GLOBALES Y ESTADOS 
 String currentMode = "SALIDA"; 
 unsigned long lastBuzzerTime = 0; 
 
@@ -44,7 +44,7 @@ unsigned long tiempoAlarmaAnterior = 0;
 bool alarmaActiva = false; 
 int estadoPIRAnterior = LOW; 
 
-// ---  FUNCIONES AUXILIARES ---
+//  FUNCIONES AUXILIARES
 
 // Conexión WiFi
 void setup_wifi() {
@@ -72,7 +72,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (String(topic) == TOPIC_MODE) {
     currentMode = message;
     Serial.println(">>> MODO CAMBIADO A: " + currentMode);
-    // Feedback sonoro corto al cambiar de modo
+
     digitalWrite(BUZZER_PIN, HIGH); delay(50); digitalWrite(BUZZER_PIN, LOW);
   }
 }
@@ -96,7 +96,7 @@ void reconnect_mqtt() {
   }
 }
 
-// Crear JSON de datos (Para gráficas y presencia)
+// Crear JSON de datos 
 String crearJsonDato(String sensor, int valor) {
   String json = "{";
   json += "\"sensor\": \"" + sensor + "\", ";
@@ -105,7 +105,7 @@ String crearJsonDato(String sensor, int valor) {
   return json;
 }
 
-// Crear JSON de alerta (Para correos)
+// Crear JSON de alerta
 String crearJsonAlerta(String tipo, String sensor, String msg) {
   String json = "{";
   json += "\"type\": \"" + tipo + "\", ";
@@ -115,7 +115,7 @@ String crearJsonAlerta(String tipo, String sensor, String msg) {
   return json;
 }
 
-// Función para sonar el buzzer 3 veces
+
 void sonarBuzzerAlerta() {
   for(int i=0; i<3; i++){
     digitalWrite(BUZZER_PIN, HIGH);
@@ -139,7 +139,7 @@ void dispararAlarma(String motivo) {
   }
 }
 
-// ---  GESTIÓN DE SENSORES ---
+//  GESTION DE SENSORES 
 
 void gestionarMQ135() {
   if (sensorListo == false) {
@@ -164,7 +164,7 @@ void gestionarMQ135() {
     //  Lógica de Alertas
     if (valorAnalogico > UMBRAL_ALERTA_AIRE) {
       
-      // MODO HOGAR: Buzzer SI, Correo NO
+      // MODO HOGAR: Buzzer si, Correo no
       if (currentMode == "HOGAR") {
         if (millis() - lastBuzzerTime > 15000) { 
           lastBuzzerTime = millis();
@@ -172,7 +172,7 @@ void gestionarMQ135() {
           sonarBuzzerAlerta();
         }
       } 
-      // MODO SALIDA: Buzzer NO, Correo SI
+      // MODO SALIDA: Buzzer no, Correo si
       else if (currentMode == "SALIDA") {
         if (!alarmaActiva) {
           Serial.println("Aire Malo (SALIDA): Enviando correo...");
@@ -195,7 +195,7 @@ void gestionarPIR() {
   estadoPIRAnterior = estadoPIRActual;
 }
 
-// --- SETUP Y LOOP PRINCIPAL ---
+//SETUP Y LOOP PRINCIPAL
 
 void setup() {
   Serial.begin(115200);
@@ -219,7 +219,7 @@ void loop() {
   gestionarMQ135();
   gestionarPIR();
 
-  // Gestión de tiempo de recarga (para no saturar el correo)
+  // Gestión de tiempo de recarga 
   if (alarmaActiva) {
     if (millis() - tiempoAlarmaAnterior >= TIEMPO_RECARGA) {
       alarmaActiva = false;       
